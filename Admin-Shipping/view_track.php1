@@ -1,0 +1,110 @@
+<?php
+include 'dbconnect.php';
+
+// Ambil tracking number dari parameter GET
+$tracking_number = isset($_GET['id']) ? $_GET['id'] : (isset($_POST['id']) ? $_POST['id'] : '');
+
+// Query untuk mendapatkan informasi tracking berdasarkan tracking number
+$query = "SELECT t.tracking_id, s.tracking_num, t.shipping_id, s.date_created, s.date_update, s.address, s.payload, s.volume, c.category_name, s.distance, s.estimated_time, s.fragile, s.note, d.driver_name, d.phone_number, m.method_name, d.plat, t.status
+          FROM tracking t
+          INNER JOIN shipping s ON t.shipping_id = s.shipping_id
+          LEFT JOIN category c ON s.category_id = c.category_id
+          LEFT JOIN driver d ON s.driver_id = d.driver_id
+          LEFT JOIN method_shipping m ON d.method_id = m.method_id
+          WHERE s.tracking_num = '$tracking_number'";
+
+$result = $conn->query($query);
+
+if ($result && $result->num_rows > 0) {
+    $row = $result->fetch_assoc();
+?>
+<div class="container-fluid">
+    <div class="col-lg-12">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="callout callout-info">
+                    <dl>
+                        <dt>Tracking Number:</dt>
+                        <dd><h4><b><?php echo $row['tracking_num']; ?></b></h4></dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="callout callout-info">
+                    <b class="border-bottom border-primary">Driver Information</b>
+                    <dl>
+                        <dt>Name:</dt>
+                        <dd><?php echo $row['driver_name']; ?></dd>
+                        <dt>Phone Number:</dt>
+                        <dd><?php echo $row['phone_number']; ?></dd>
+                        <dt>Vehicle:</dt>
+                        <dd><?php echo $row['method_name']; ?></dd>
+                        <dt>Plat:</dt>
+                        <dd><?php echo $row['plat']; ?></dd>
+                    </dl>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="callout callout-info">
+                    <b class="border-bottom border-primary">Item Detail</b>
+                    <div class="row">
+						    <div class="col-sm-6">
+                                <dl>
+                                    <dt>Payload:</dt>
+                                    <dd><?php echo $row['payload']; ?></dd>
+                                    <dt>Volume:</dt>
+                                    <dd><?php echo $row['volume']; ?></dd>
+                                    <dt>Category:</dt>
+                                    <dd><?php echo $row['category_name']; ?></dd>
+                                </dl>
+                            </div>
+                            <div class="col-sm-6">
+                                <dl>
+                                    <dt>Distance:</dt>
+                                    <dd><?php echo $row['distance']; ?></dd>
+                                    <dt>Estimated Time:</dt>
+                                    <dd><?php echo $row['estimated_time']; ?></dd>
+                                    <dt>Fragile:</dt>
+                                    <dd><?php echo $row['fragile']; ?></dd>
+                                </dl>
+                            </div>
+                            <div class="col-sm-10">
+                                <dl>
+                                    <dt>Note:</dt>
+                                    <dd><?php echo $row['note']; ?></dd>
+                                    <dt>Status:</dt>
+                                    <dd><?php echo $row['status']; ?>
+                                    <span class="btn badge badge-primary bg-gradient-primary" id='update_status_btn'><i class="fa fa-edit"></i> Update Status</span></dd>
+                                </dl>
+                            </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php
+} else {
+    echo "No tracking information available";
+}
+?>
+<div class="modal-footer display p-0 m-0">
+    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+</div>
+<style>
+    #uni_modal .modal-footer {
+        display: none
+    }
+
+    #uni_modal .modal-footer.display {
+        display: flex
+    }
+</style>
+<script>
+    $('#update_status_btn').click(function() {
+        uni_modal("Update Status of: <?php echo $row['tracking_id'] ?>", "update_status.php?id=<?php echo $row['tracking_id'] ?>&status=<?php echo $row['status'] ?>", "")
+    });
+    
+</script>

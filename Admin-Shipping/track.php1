@@ -1,0 +1,211 @@
+<?php include 'dbconnect.php'; ?>
+
+<?php
+    // Function to handle delete_tracking request
+if (isset($_POST['action']) && $_POST['action'] == 'delete_tracking') {
+    $tracking_id = $_POST['args'][0];
+  
+    $query = "DELETE FROM tracking WHERE tracking_id = ?";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param('i', $tracking_id); // Bind tracking_id for security
+    $stmt->execute();
+  
+    if ($stmt->affected_rows > 0) {
+      echo "1"; // Success signal to the AJAX request
+    } else {
+      echo "0"; // Error signal (optional)
+    }
+    $stmt->close();
+}
+
+?>
+
+<div class="col-lg-12 mb-3">
+    <div class="card card-outline card-primary">
+        <div class="card-body">
+            <div class="d-flex w-100 px-1 py-2 justify-content-center align-items-center">
+                <?php 
+                // Array status yang sesuai dengan yang ada di database
+                $status_arr = array("Item accepted by driver","Shipped","In-Transit","Arrived at destination","Delivered","Unsuccessful");
+                
+                // Nilai status yang dipilih dari URL, defaultnya adalah "all"
+                $selected_status = isset($_GET['status']) ? $_GET['status'] : 'all';
+                ?>
+                <label for="status" class="mx-1">Status</label>
+                <select name="status" id="status" class="custom-select custom-select-sm col-sm-3">
+                    <option value="all" <?php echo $selected_status == 'all' ? "selected" :'' ?>>All</option>
+                    <?php 
+                    // Loop untuk menampilkan opsi status
+                    foreach($status_arr as $status): 
+                        // Membuat teks opsi dengan huruf kapital awal
+                        $status_text = ucfirst($status);
+                    ?>
+                        <option value="<?php echo $status ?>" <?php echo $selected_status == $status ? "selected" :'' ?>><?php echo $status_text; ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card-body">
+<table class="table table-hover table-bordered" id="list">
+    <colgroup>
+        <col width="5%">
+        <col width="10%">
+        <col width="15%">
+        <col width="15%">
+        <col width="15%">
+        <col width="15%">
+        <col width="10%">
+        <col width="15%">
+    </colgroup>
+    <thead>
+        <tr>
+            <th class="text-center">#</th>
+            <th>Tracking Number</th>
+            <th>Date Created</th>
+            <th>Date Updated</th>
+            <th>Address</th>
+            <th>Category</th>
+            <th>Status</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php
+        // Your database connection code
+        // Replace $conn with your actual connection variable
+
+        $query_select_tracking = "
+            SELECT DISTINCT 
+                s.tracking_num AS tracking_number, 
+                t.tracking_id AS tracking_id, 
+                MAX(s.date_created) AS date_created, 
+                MAX(t.date_updated) AS date_updated, 
+                MAX(s.address) AS address, 
+                MAX(c.category_name) AS category_name, 
+                MIN(t.status) AS status
+            FROM 
+                tracking t
+            INNER JOIN 
+                shipping s ON t.shipping_id = s.shipping_id
+            LEFT JOIN 
+                category c ON s.category_id = c.category_id
+            WHERE 
+                t.tracking_id IN (
+                    SELECT 
+                        MAX(tracking_id) 
+                    FROM 
+                        tracking 
+                    GROUP BY 
+                        shipping_id
+                )
+            GROUP BY 
+                s.tracking_num
+            ORDER BY 
+                t.tracking_id ASC";
+
+        $result_select_tracking = $conn->query($query_select_tracking);
+
+        if ($result_select_tracking->num_rows > 0) {
+            $i = 1;
+            while ($row = $result_select_tracking->fetch_assoc()) :
+                ?>
+                <tr>
+                    <td class="text-center"><?php echo $i++; ?></td>
+                    <td><?php echo $row["tracking_number"]; ?></td>
+                    <td><?php echo $row["date_created"]; ?></td>
+                    <td><?php echo $row["date_updated"]; ?></td>
+                    <td><?php echo $row["address"]; ?></td>
+                    <td><?php echo $row["category_name"]; ?></td>
+                    <td><?php echo $row["status"]; ?></td>
+                    <td align="center">
+                        <button type="button" class="btn btn-flat btn-default btn-sm dropdown-toggle" data-toggle="dropdown">
+                            Action
+                            <span class="sr-only">Toggle Dropdown</span>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-right" role="menu">
+                            <a class="dropdown-item view_tracking" href="" data-id="<?php echo $row['tracking_id']; ?>">
+                                <i class="fas fa-eye"></i> View
+                            </a>
+                            <a class="dropdown-item delete_tracking" href="#" data-id="<?php echo $row['tracking_id']; ?>">
+                                <i class="fas fa-trash"></i> Delete
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+            <?php endwhile;
+        } else {
+            echo "<tr><td colspan='8'>No tracking information available</td></tr>";
+        }
+        ?>
+    </tbody>
+</table>
+
+
+</div>
+<style>
+    table td {
+        vertical-align: middle !important;
+    }
+</style>
+<script>
+    $(document).ready(function() {
+        // Inisialisasi dataTable
+        $('#list').dataTable();
+
+        // Fungsi untuk memfilter data saat nilai dropdown berubah
+        $('#status').change(function() {
+            var selected_status = $(this).val(); // Ambil nilai status yang dipilih
+            filterData(selected_status);
+        });
+
+        // Fungsi untuk memfilter dan menampilkan data berdasarkan status
+        function filterData(status) {
+            $('#list tbody tr').each(function() {
+                var row_status = $(this).find('td:eq(6)').text().toLowerCase(); // Ambil status dari setiap baris (index 6)
+                
+                // Periksa apakah status baris sama dengan status yang dipilih
+                if(status === 'all' || row_status === status.toLowerCase()) {
+                    $(this).show(); // Tampilkan baris jika statusnya cocok
+                } else {
+                    $(this).hide(); // Sembunyikan baris jika statusnya tidak cocok
+                }
+            });
+        }
+
+        // Memasukkan fungsi untuk menampilkan detail parcel
+        $('.view_tracking').click(function(){
+			var tracking_id = $(this).closest('tr').find('td:eq(1)').text(); // Get tracking_id from the second column (index 1) of the same row 
+            uni_modal("Item's Details","view_track.php?id="+tracking_id,"large")
+
+		})
+
+        // Memasukkan fungsi untuk mengkonfirmasi penghapusan parcel
+	    $('.delete_tracking').click(function(){
+		    _conf("Are you sure to delete this tracking item?","delete_tracking",[$(this).attr('data-id')])
+	    })
+    });
+
+    // Fungsi untuk menghapus parcel
+    function delete_tracking(tracking_id) {
+        start_load()
+        $.ajax({
+            url:'track.php',
+            method:'POST',
+            data:{action:'delete_tracking',args:[tracking_id]},
+            success:function(resp){
+                if(resp){
+                    alert_toast("Data successfully deleted",'success')
+                    setTimeout(function(){
+                        location.reload()
+                    },1500)
+                } else {
+                    alert_toast("Deletion failed", 'error');
+        }
+      }
+      
+    });
+  }
+</script>

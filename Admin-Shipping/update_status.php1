@@ -1,0 +1,87 @@
+    <?php
+    include 'dbconnect.php';
+
+    $tracking_id = isset($_GET['id']) ? $_GET['id'] : '';
+    $status = isset($_GET['status']) ? $_GET['status'] : '';
+
+    if ($_SERVER["REQUEST_METHOD"] == "POST") {
+        $tracking_id = $_POST['id']; // Mengambil id tracking dari data POST
+        $status = $_POST['status'];
+
+        // Mengambil shipping_id dari tracking yang sedang diupdate
+        $get_shipping_id_query = "SELECT DISTINCT shipping_id FROM tracking WHERE tracking_id = $tracking_id ORDER BY date_updated DESC";
+        // $get_shipping_id_query = "SELECT shipping_id FROM tracking WHERE tracking_id = $tracking_id";
+        $shipping_id_result = $conn->query($get_shipping_id_query);
+        $shipping_id_row = $shipping_id_result->fetch_assoc();
+        $shipping_id = $shipping_id_row['shipping_id'];
+
+        // Memasukkan data ke dalam tracking baru
+        $insert_new_tracking_query = "INSERT INTO tracking (shipping_id, status, date_updated) VALUES ('$shipping_id', '$status', NOW())";
+
+        if ($conn->query($insert_new_tracking_query) === TRUE) {
+            $response = array('status' => 1, 'message' => 'Item status updated successfully');
+        } else {
+            $response = array('status' => 0, 'message' => 'Error updating status: ' . $conn->error);
+        }
+
+        echo json_encode($response);
+        exit;
+    }
+    ?>
+
+
+    <div class="container-fluid">
+        <form action="" id="update_status_form">
+            <input type="hidden" name="id" value="<?php echo $tracking_id ?>">
+            <div class="form-group">
+                <label for="">Update Status</label>
+                <?php $status_arr = array("Item accepted by driver","Shipped","In-Transit","Arrived at destination","Delivered","Unsuccessful"); ?>
+                <select name="status" class="custom-select custom-select-sm">
+                    <?php foreach ($status_arr as $k => $v) : ?>
+                        <option value="<?php echo $v ?>" <?php echo $status == $v ? "selected" : ''; ?>><?php echo $v; ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </form>
+    </div>
+
+
+    <script>
+        $('#update_status_btn').click(function() {
+    var tracking_id = $(this).attr('data-id');
+    var status = $(this).attr('data-status');
+    uni_modal("Update Status of: " + tracking_id, "update_status.php?id=" + tracking_id + "&status=" + status, "")
+});
+        $('#update_status_form').submit(function(e) {
+            e.preventDefault();
+            start_load();
+            var data = $(this).serialize();
+            $.ajax({
+                url: 'update_status.php',
+                method: 'POST',
+                data: data,
+                error: function(err) {
+                    console.log(err);
+                    alert_toast('An error occurred.', "error");
+                    end_load();
+                },
+                success: function(resp) {
+                    let data = JSON.parse(resp);
+                    if (data.status === 1) {
+                        // Mengambil status yang dipilih dari form
+                        var newStatus = $('select[name="status"]').val();
+                        // Memperbarui tampilan status
+                        $('#current_status').text(newStatus);
+                        alert_toast("Item's Status successfully updated", 'success');
+                        // Tidak melakukan reload halaman, karena hanya tampilan yang berubah
+                        end_load();
+                    } else {
+                        alert_toast("Error updating status: " + data.message, "error");
+                        end_load();
+                    }
+                }
+            });
+        });
+    </script>
+
+
